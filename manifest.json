@@ -1,0 +1,15 @@
+{
+    "version": "1.0",
+    "url": "https://github.com/lukesampson/cowsay-psh/archive/master.zip",
+    "bin": ".pwshrc.ps1",
+    "installer": {
+        "script": [
+            "powershell.exe -ExecutionPolicy Bypass -File `\"$dir\\manage.ps1`\" -Action Install"
+        ]
+    },
+    "uninstaller": {
+        "script": [
+            "powershell.exe -ExecutionPolicy Bypass -File `\"$dir\\manage.ps1`\" -Action Uninstall"
+        ]
+    }
+}
