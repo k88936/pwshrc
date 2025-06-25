@@ -1,56 +1,60 @@
 # 🐚 pwshrc
+[中文](README.zh.md)
 
-> 将你的 `.bashrc` 配置无缝迁移到 PowerShell！
+> Seamlessly migrate your `.bashrc` configuration to PowerShell!
 
-**pwshrc** 是一个轻量级 PowerShell 脚本，用于加载并解析 Linux 风格的 `.bashrc` 文件，并将其配置自动应用到当前 PowerShell 会话中。非常适合从 Linux/Bash 环境迁移到 Windows 的开发者。
+**pwshrc** is a lightweight PowerShell script that loads and parses Linux-style `.bashrc` files, automatically applying the configurations to the current PowerShell session. It's perfect for developers transitioning from Linux/Bash environments to Windows.
 
-## 📌 功能亮点
+## 📌 Key Features
 
-- ✅ **支持只解析 `#PS ... #SP` 区块内的内容**  
-  只处理你指定的部分，避免误解析无关脚本。
+- ✅ **Supports parsing only content within `#PS ... #SP` blocks**  
+  Only processes the sections you specify, avoiding accidental parsing of irrelevant scripts.
 
-- ✅ **支持 `export VAR=value` 设置环境变量**  
-  自动将 `$VAR` 替换为 PowerShell 的 `$env:VAR`，并展开实际值。
+- ✅ **Supports `export VAR=value` for setting environment variables**  
+  Automatically converts `$VAR` to PowerShell's `$env:VAR`, and expands its value.
 
-- ✅ **支持 `alias name='cmd'` 创建别名或函数**  
-  简单别名用 `Set-Alias`，复杂命令自动转为 PowerShell 函数。
+- ✅ **Supports `alias name='cmd'` for creating aliases or functions**  
+  Simple aliases use `Set-Alias`; complex commands are converted into PowerShell functions.
 
-- ✅ **支持命令替换语法：`$(...)` → `$(& ...)`**  
-  在 alias 或变量中使用子命令也能正常运行。
+- ✅ **Supports command substitution syntax: `$(...)` → `$(& ...)`**  
+  Subcommands used in aliases or variables will work correctly.
 
-- ✅ **支持 `source ~/.bash_profile` 或 `. ~/.bash_aliases`**  
-  递归加载其他配置文件，保持模块化结构。
+- ✅ **Supports `source ~/.bash_profile` or `. ~/.bash_aliases`**  
+  Recursively loads other configuration files, preserving modular structure.
 
-- ✅ **自动识别 Unix 路径 `/c/Users/xxx` → `C:\Users\xxx`**
+- ✅ **Automatically recognizes Unix paths `/c/Users/xxx` → `C:\Users\xxx`**
 
-- ✅ **模拟 Bash 内建变量（如 `$HOME`, `$USER`, `$HOSTNAME`）**  
-  即使在 PowerShell 中没有原生支持，也能顺利解析 `.bashrc` 中的写法。
+- ✅ **Simulates Bash built-in variables (e.g., `$HOME`, `$USER`, `$HOSTNAME`)**  
+  Even if not natively supported in PowerShell, it can parse them as written in `.bashrc`.
 
-- ✅ **支持为shell脚本批量创建对应powershell函数**
-  利用busybox bash 运行shell脚本,支持参数传递
+- ✅ **Supports batch creation of corresponding PowerShell functions for shell scripts**  
+  Runs shell scripts using BusyBox bash, with support for argument passing.
 
-- ✅ **支持对类似profile.d批量执行source**
+- ✅ **Supports bulk sourcing similar to profile.d directories**
 
 ---
 
-## 🧩 使用方式
+## 🧩 Usage
 
-### 1. 安装
-* 📦 使用 Scoop
+### 1. Installation
+
+* 📦 Using Scoop
     ```powershell
-    scoop install https://raw.githubusercontent.com/k88936/pwshrc/refs/heads/main/pwshrc.json 
+    scoop install https://raw.githubusercontent.com/k88936/pwshrc/refs/heads/main/pwshrc.json
     ```
-* 🖥 手动安装
-    ``` powershell
+
+* 🖥 Manual Installation
+    ```powershell
     git clone https://github.com/k88936/pwshrc.git
     cd pwshrc
     ./install.ps1
-    # # use uninstall.ps1 to uninstall
+    # Use uninstall.ps1 to uninstall
     # ./uninstall.ps1
     ```
 
-### 2. 编辑 `.bashrc`
-你可以像在 Bash 中一样编写 `.bashrc`，但只放在 `#PS ... #SP` 区域内才会被加载：
+### 2. Edit `.bashrc`
+You can write your `.bashrc` just like in Bash, but only the content within the `#PS ... #SP` block will be loaded:
+
 ```bash
 #PS
 export PATH="$PATH:/usr/bin"
@@ -60,54 +64,54 @@ alias cdf="cd \"\$(fzf --walker=follow,dir,hidden)\""
 source ~/.bash_aliases
 #SP
 ```
-#### 高级特性
-* 把独立shell脚本批量添加到函数
+
+#### Advanced Features
+
+* **Add standalone shell scripts as PowerShell functions**
   ```bash
   #PS
   export USER_BIN_PATH=$HOME/.configure/bin
   #SP
-  # 在bash里,我们通常把自定义的脚本存放的目录添加到PATH变量里, 
-  # 但是在windows下并不能用来执行,
-  # 实现方法是把 USER_BIN_PATH 变量设为存放脚本的目录路径
+  # In Bash, we usually add the directory containing custom scripts to the PATH variable,
+  # but this doesn't work directly on Windows.
+  # Instead, set USER_BIN_PATH to point to your script directory.
   export PATH=$USER_BIN_PATH:$PATH
   ```
-* 批量执行profile.d里的初始化
+
+* **Execute initialization scripts in profile.d-like directories**
   ```bash
   #PS
   export USER_PROFILE_D_PATH=$HOME/.configure/profile.d
   #SP
-  # 由于不支持循环判断复杂逻辑, 可以设 USER_PROFILE_D_PATH 为存放脚本的目录
+  # Since complex logic like loops isn't supported, set USER_PROFILE_D_PATH to the script directory.
   for env in $USER_PROFILE_D_PATH; do
     if [ -f "$env" ]; then
-          source "$env"
+        source "$env"
     fi
   done
   ```
 
 ---
 
-## ⚙️ 实现原理简述
+## ⚙️ Implementation Overview
 
-- 使用状态机判断是否进入 `#PS ... #SP` 区块。
-- 对每一行进行正则匹配，识别 `export`, `alias`, `source`, `$()` 等语法。
-- 使用统一函数 `ProcessString` 处理字符串：
-  - 去除引号
-  - 替换变量 `$VAR` → `%VAR%` 并展开值
-  - 支持 `~` 展开为 `$env:USERPROFILE`
-  - Unix 路径 `/c/...` → `C:/...`
-  - 支持嵌套 `source` 和 `. filename`
-- 所有操作都保留 PowerShell 的语义，不依赖一次性转换 `.ps1` 文件。
-
----
-
-## 🚫 当前限制与注意事项
-
-| 限制 | 说明 |
-|------|------|
-| 不支持所有 Bash 特性 | 如 `if`, `for`, `while`, `case` 等控制流语句不会执行 |
-| 不完全兼容 Shell 脚本逻辑 | 仅适用于配置类语句（变量、别名等） |
-| 某些路径需手动测试 | 如 MSYS2、WSL 相关路径可能需要自定义映射 |
-| `$()` 子命令延迟执行 | 使用函数封装实现，不会立即执行 |
-| 不自动创建快捷命令 | 别名/函数需手动添加到 `.bashrc` |
+- Uses a state machine to detect whether inside the `#PS ... #SP` block.
+- Each line is matched using regex to identify `export`, `alias`, `source`, `$()` etc.
+- A unified function `ProcessString` handles string processing:
+  - Removes quotes
+  - Replaces variables `$VAR` → `%VAR%` and expands their values
+  - Supports `~` expansion to `$env:USERPROFILE`
+  - Converts Unix paths `/c/...` → `C:\...`
+  - Supports nested `source` and `. filename`
+- All operations maintain PowerShell semantics, no one-time conversion to `.ps1` files.
 
 ---
+
+## 🚫 Limitations and Notes
+
+| Limitation | Description |
+|-----------|-------------|
+| Does not support all Bash features | Control structures like `if`, `for`, `while`, `case` will not be executed |
+| Not fully compatible with Shell script logic | Only suitable for configuration statements (variables, aliases, etc.) |
+
+--- 
