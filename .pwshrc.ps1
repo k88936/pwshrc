@@ -21,7 +21,7 @@ function Unescape-BashString {
         return $Value
     }
 
-    # Step 1: 替换常见转义字符
+    # Step 1: Replace common escape characters
     $Value = $Value -replace '\\"', '"'           # \" → "
     $Value = $Value -replace '\\\$', '$'          # \$ → $
     $Value = $Value -replace '\\\\', '\'          # \\ → \
@@ -59,10 +59,10 @@ function Expand-BashVariable {
         [string]$Value
     )
     Write-Debug "[Expand-BashVariable] Input: $Value"
-    # Step 1: Bash 变量格式 $VAR → Windows 格式 %VAR%
+    # Step 1: Bash variable format $VAR → Windows format %VAR%
     $converted = $Value -replace '\$(\w+)', '%$1%'
 
-    # Step 2: 展开所有 %VAR% 环境变量
+    # Step 2: Expand all %VAR% environment variables
     $converted = [System.Environment]::ExpandEnvironmentVariables($converted)
     Write-Debug "[Expand-BashVariable] Output: $converted"
     return $converted
@@ -86,17 +86,17 @@ function Convert-UnixPathToWindows {
     if ([string]::IsNullOrWhiteSpace($Value)) {
         return $Value
     }
-    # 转换斜杠为 Windows 风格（可选）
+    # Convert slashes to Windows style (optional)
     $Value = $Value -replace '/', '\'
     $MSYS2Path = "$env:USERPROFILE\scoop\apps\msys2\current"
-    $Value = $Value -replace '/([cdefghijk])/','${1}:/'
-    $Value = $Value -replace '/usr',"$MSYS2Path/usr"
-    $Value = $Value -replace '/mingw',"$MSYS2Path/mingw"
+    $Value = $Value -replace '/([cdefghijk])/', '${1}:/'
+    $Value = $Value -replace '/usr', "$MSYS2Path/usr"
+    $Value = $Value -replace '/mingw', "$MSYS2Path/mingw"
     Write-Debug "[Convert-UnixPathToWindows] Output: $Value"
     return $Value
 }
 
-# ✅ 封装所有字符串处理到这个函数中
+#Encapsulate all string processing in this function
 function ProcessString {
     param(
         [string]$InputString
@@ -109,19 +109,19 @@ function ProcessString {
 
     Write-Debug "[ProcessString] Processing raw input: $InputString"
 
-    # Step 1: 去除引号
+    # Step 1: Remove quotes
     $processed = RemoveQuotes -Value $InputString
 
-    # Step 2: 替换 bash 命令替换 $(...)
+    # Step 2: Replace bash command substitution $(...)
     $processed = Convert-BashCommandSubstitution -Value $processed
 
-    # Step 2: 替换 bash 变量引用
+    # Step 2: Replace bash variable references
     $processed = Expand-BashVariable -Value $processed
 
-    # Step 3: 替换 ~ 为用户目录
+    # Step 3: Replace ~ with user directory
     $processed = Expand-HomePath -Value $processed
 
-    # Step 4: 转换 Unix 路径格式
+    # Step 4: Convert Unix path format
     $processed = Convert-UnixPathToWindows -Value $processed
 
     $processed = Unescape-BashString -Value $processed
@@ -145,7 +145,7 @@ function Parse-BashLine {
     Write-Debug "[Parse-BashLine] Processing line: $trimmedLine"
 
     # ----------------------------
-    # 处理 PATH
+    # Handle PATH
     # ----------------------------
     if ($trimmedLine -match '^export\s+PATH=(.+)$') {
         Write-Debug "[Parse-BashLine] Matched export PATH"
@@ -162,10 +162,12 @@ function Parse-BashLine {
                 if (-not $env:PATH.Contains($resolvedPath, [System.StringComparison]::InvariantCultureIgnoreCase)) {
                     Write-Debug "[Parse-BashLine] Adding to PATH: $resolvedPath"
                     $env:PATH += ";$resolvedPath"
-                } else {
+                }
+                else {
                     Write-Debug "[Parse-BashLine] Already in PATH (skipped): $resolvedPath"
                 }
-            } else {
+            }
+            else {
                 Write-Debug "[Parse-BashLine] Path does not exist (ignored): $resolvedPath"
             }
         }
@@ -173,7 +175,7 @@ function Parse-BashLine {
     }
 
     # ----------------------------
-    # 处理 export VAR=value
+    # Handle export VAR=value
     # ----------------------------
     if ($trimmedLine -match '^export\s+(\w+)=(.+)$') {
         Write-Debug "[Parse-BashLine] Matched export VAR=value"
@@ -187,7 +189,7 @@ function Parse-BashLine {
     }
 
     # ----------------------------
-    # 处理 alias name='command'
+    # Handle alias name='command'
     # ----------------------------
     if ($trimmedLine -match '^alias\s+(\w+)=(.+)$') {
         Write-Debug "[Parse-BashLine] Matched alias"
@@ -205,7 +207,8 @@ function Parse-BashLine {
             # Set-Item -Path "Function:\$aliasName" -Value $scriptBlock -Scope Global -Force
             # Invoke-Expression "function global:$aliasName { param(`$args); $AliasValue }"
             Write-Debug "[Parse-BashLine] Creating function for alias: $aliasName => $aliasName : $scriptBlock"
-        } else {
+        }
+        else {
             Write-Debug "[Parse-BashLine] Creating simple alias: $aliasName -> $aliasValue"
             Set-Alias -Name $aliasName -Value $aliasValue -Scope Global -Force
         }
@@ -213,7 +216,7 @@ function Parse-BashLine {
     }
 
     # ----------------------------
-    # 处理普通变量赋值 VAR=value
+    # Handle regular variable assignment VAR=value
     # ----------------------------
     if ($trimmedLine -match '^(\w+)=(.+)$') {
         Write-Debug "[Parse-BashLine] Matched VAR=value"
@@ -227,7 +230,7 @@ function Parse-BashLine {
     }
 
     # ----------------------------
-    # 处理 source ~/.bash_profile 或 . ~/.bash_aliases
+    # Handle source ~/.bash_profile or . ~/.bash_aliases
     # ----------------------------
     if ($trimmedLine -match '^(?:source|\.)\s+(.+)$') {
         Write-Debug "[Parse-BashLine] Matched source or dot command"
@@ -241,19 +244,20 @@ function Parse-BashLine {
 
         Write-Debug "[Parse-BashLine] Sourcing file: $filePath"
 
-        # ✅ 递归调用 Load-BashRc 加载其他配置文件
+        # ✅ Recursively call Load-BashRc to load other configuration files
         Load-BashRc -Value $filePath
         return
     }
 
     # ----------------------------
-    # 执行未知命令
+    # Execute unknown commands
     # ----------------------------
     try {
         Write-Debug "[Parse-BashLine] Attempting to execute command: $trimmedLine"
         $sb = [ScriptBlock]::Create($trimmedLine)
         & $sb
-    } catch {
+    }
+    catch {
         Write-Debug "[Parse-BashLine] Failed to execute line: $trimmedLine"
     }
 }
@@ -302,13 +306,13 @@ function Load-BashRc {
     Write-Debug "[Bashrc] Configuration applied from: $Value"
 }
 
-# 设置 bash 兼容的环境变量
+# Set bash-compatible environment variables
 $env:HOME = "$env:USERPROFILE"
 $env:PWD = (Get-Location).Path
 $env:SHELL = "PowerShell"
 $env:USER = "$env:USERNAME"
 $env:HOSTNAME = [System.Net.Dns]::GetHostName()
-# 默认加载一次
+# Load once by default
 
 Load-BashRc
 
@@ -317,37 +321,38 @@ Load-BashRc
 
 # bin
 if (-not [string]::IsNullOrWhiteSpace("$env:USER_BIN_PATH")) {
-  Write-Debug "[bin] USER_BIN_PATH is set: $env:USER_BIN_PATH"
-     # 判断路径是否存在且是一个目录
+    Write-Debug "[bin] USER_BIN_PATH is set: $env:USER_BIN_PATH"
+    # Check if path exists and is a directory
     if (Test-Path -Path "$env:USER_BIN_PATH" -PathType Container) {
         Get-ChildItem -Path "$env:USER_BIN_PATH" -File | ForEach-Object {
             $fileName = $_.BaseName
             $filePath = $_.FullName
 
             Write-Debug "[bin] adding $fileName at path: $filePath"
-            # 动态创建函数
+            # Create function dynamically
             # $scriptBlock = [ScriptBlock]::Create("param(`$args);  sh $filePath  @args ")
 
             $scriptBlock = {
-                              param(
-                                  [Parameter(ValueFromRemainingArguments = $true)]
-                                  $Arguments
-                              )
-                              busybox bash $filePath $Arguments
-                            }.GetNewClosure()
+                param(
+                    [Parameter(ValueFromRemainingArguments = $true)]
+                    $Arguments
+                )
+                busybox bash $filePath $Arguments
+            }.GetNewClosure()
 
 
             Set-Item "Function:\global:$fileName" -Value $scriptBlock -Force | Out-Null
         }
-    } else {
-          Write-Warning "Directory does not exist: $env:USER_BIN_PATH"
+    }
+    else {
+        Write-Warning "Directory does not exist: $env:USER_BIN_PATH"
     }
 }
 
 if ( -not [string]::IsNullOrWhiteSpace("$env:USER_PROFILE_D_PATH")) {
 
-  Write-Debug "[bin] USER_PROFILE_D_PATH is set: $env:USER_PROFILE_D_PATH"
-     # 判断路径是否存在且是一个目录
+    Write-Debug "[bin] USER_PROFILE_D_PATH is set: $env:USER_PROFILE_D_PATH"
+    # Check if path exists and is a directory
     if (Test-Path -Path "$env:USER_PROFILE_D_PATH" -PathType Container) {
         
         Get-ChildItem -Path "$env:USER_PROFILE_D_PATH" -File | ForEach-Object {
@@ -356,8 +361,9 @@ if ( -not [string]::IsNullOrWhiteSpace("$env:USER_PROFILE_D_PATH")) {
             Write-Debug "[profile] loading file: $fileName at path: $filePath"
             Load-BashRc -Value $filePath -All $true
         }
-    }else {
-          Write-Warning "Directory does not exist: $env:USER_PROFILE_D_PATH"
+    }
+    else {
+        Write-Warning "Directory does not exist: $env:USER_PROFILE_D_PATH"
     }
 }
 
