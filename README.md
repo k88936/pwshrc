@@ -1,49 +1,49 @@
-# 🐚 pwshrc
+# pwshrc
 [中文](README.zh.md)
 
 > Seamlessly migrate your `.bashrc` configuration to PowerShell!
 
 **pwshrc** is a lightweight PowerShell script that loads and parses Linux-style `.bashrc` files, automatically applying the configurations to the current PowerShell session. It's perfect for developers transitioning from Linux/Bash environments to Windows.
 
-## 📌 Key Features
+## Key Features
 
-- ✅ **Supports parsing only content within `#PS ... #SP` blocks**  
+- **Supports parsing only content within `#PS ... #SP` blocks**  
   Only processes the sections you specify, avoiding accidental parsing of irrelevant scripts.
 
-- ✅ **Supports `export VAR=value` for setting environment variables**  
+- **Supports `export VAR=value` for setting environment variables**  
   Automatically converts `$VAR` to PowerShell's `$env:VAR`, and expands its value.
 
-- ✅ **Supports `alias name='cmd'` for creating aliases or functions**  
+- **Supports `alias name='cmd'` for creating aliases or functions**  
   Simple aliases use `Set-Alias`; complex commands are converted into PowerShell functions.
 
-- ✅ **Supports command substitution syntax: `$(...)` → `$(& ...)`**  
+- **Supports command substitution syntax: `$(...)` → `$(& ...)`**  
   Subcommands used in aliases or variables will work correctly.
 
-- ✅ **Supports `source ~/.bash_profile` or `. ~/.bash_aliases`**  
+- **Supports `source ~/.bash_profile` or `. ~/.bash_aliases`**  
   Recursively loads other configuration files, preserving modular structure.
 
-- ✅ **Automatically recognizes Unix paths `/c/Users/xxx` → `C:\Users\xxx`**
+- **Automatically recognizes Unix paths `/c/Users/xxx` → `C:\Users\xxx`**
 
-- ✅ **Simulates Bash built-in variables (e.g., `$HOME`, `$USER`, `$HOSTNAME`)**  
+- **Simulates Bash built-in variables (e.g., `$HOME`, `$USER`, `$HOSTNAME`)**  
   Even if not natively supported in PowerShell, it can parse them as written in `.bashrc`.
 
-- ✅ **Supports batch creation of corresponding PowerShell functions for shell scripts**  
+- **Supports batch creation of corresponding PowerShell functions for shell scripts**  
   Runs shell scripts using BusyBox bash, with support for argument passing.
 
-- ✅ **Supports bulk sourcing similar to profile.d directories**
+- **Supports bulk sourcing similar to profile.d directories**
 
 ---
 
-## 🧩 Usage
+## Usage
 
 ### 1. Installation
 
-* 📦 Using Scoop
+* Using Scoop
     ```powershell
     scoop install https://raw.githubusercontent.com/k88936/pwshrc/refs/heads/main/pwshrc.json
     ```
 
-* 🖥 Manual Installation
+* Manual Installation
     ```powershell
     git clone https://github.com/k88936/pwshrc.git
     cd pwshrc
@@ -93,7 +93,7 @@ source ~/.bash_aliases
 
 ---
 
-## ⚙️ Implementation Overview
+## Implementation Overview
 
 - Uses a state machine to detect whether inside the `#PS ... #SP` block.
 - Each line is matched using regex to identify `export`, `alias`, `source`, `$()` etc.
@@ -107,11 +107,11 @@ source ~/.bash_aliases
 
 ---
 
-## 🚫 Limitations and Notes
+## Limitations and Notes
 
-| Limitation | Description |
-|-----------|-------------|
-| Does not support all Bash features | Control structures like `if`, `for`, `while`, `case` will not be executed |
-| Not fully compatible with Shell script logic | Only suitable for configuration statements (variables, aliases, etc.) |
+| Limitation                                   | Description                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------- |
+| Does not support all Bash features           | Control structures like `if`, `for`, `while`, `case` will not be executed |
+| Not fully compatible with Shell script logic | Only suitable for configuration statements (variables, aliases, etc.)     |
 
---- 
+---
