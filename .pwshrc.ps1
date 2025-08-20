@@ -1,10 +1,10 @@
 Set-PSDebug -Trace 0
-$DebugPreference = "Ignore"
-# $DebugPreference ="Continue"
+$DebugPreference = "SilentlyContinue"
+# $DebugPreference = "Continue"
 Set-PSReadLineKeyHandler -Key Tab -Function Complete
 Remove-Item alias:rm
 Remove-Item alias:ls
-# Remove-Item alias:curl 
+Remove-Item alias:curl 
 New-Alias -Name sudo -Value "$env:USERPROFILE\scoop\apps\sudo\current\sudo.ps1"
 
 
@@ -147,10 +147,10 @@ function Parse-BashLine {
     # ----------------------------
     # Handle PATH
     # ----------------------------
-    if ($trimmedLine -match '^export\s+PATH=(.+)$') {
-        Write-Debug "[Parse-BashLine] Matched export PATH"
+    if ($trimmedLine -match '^export\s+PATH=(?:"([^"]+)"|''([^'']+)''|([^\s]+))$') {
+        Write-Debug "[Parse-BashLine] Matched export PATH : $($matches[1])"
 
-        $pathValue = ProcessString -InputString $matches[1]
+        $pathValue = ProcessString -InputString ($matches[1] -split ':')[0]
 
         Write-Debug "[Parse-BashLine] Expanded PATH value: $pathValue"
 
@@ -158,6 +158,12 @@ function Parse-BashLine {
 
         foreach ($p in $newPaths) {
             $resolvedPath = [System.Environment]::ExpandEnvironmentVariables($p)
+            # Skip paths with illegal characters (basic check)
+            if ($resolvedPath -match '[<>:"|?*]' -or $resolvedPath -match '^\\\\' -or $resolvedPath -match '[\/]$') {
+                Write-Debug "[Parse-BashLine] Skipping path with illegal characters: $resolvedPath"
+                continue
+            }
+            Write-Debug "[Parse-BashLine] Processing path: $resolvedPath" 
             if (Test-Path $resolvedPath -PathType Container) {
                 if (-not $env:PATH.Contains($resolvedPath, [System.StringComparison]::InvariantCultureIgnoreCase)) {
                     Write-Debug "[Parse-BashLine] Adding to PATH: $resolvedPath"
@@ -200,13 +206,9 @@ function Parse-BashLine {
         Write-Debug "[Parse-BashLine] Alias: $aliasName -> $aliasValue"
 
         if ($aliasValue -match '\s' -or $aliasValue -match '\$\w+' -or $aliasValue -match '\$\(' ) {
-            $scriptBlock = [ScriptBlock]::Create("param(`$args); $aliasValue")
-            # $scriptBlock = $aliasValue
-            # New-Item -Path Function:\ -Name $aliasName -Value $scriptBlock -Force | Out-Null
-            Set-Item -Path "Function:\global:$aliasName" -Value $scriptBlock -Force
-            # Set-Item -Path "Function:\$aliasName" -Value $scriptBlock -Scope Global -Force
-            # Invoke-Expression "function global:$aliasName { param(`$args); $AliasValue }"
-            Write-Debug "[Parse-BashLine] Creating function for alias: $aliasName => $aliasName : $scriptBlock"
+            $funcDef = "function global:$aliasName { param(`$args); $aliasValue }"
+            Invoke-Expression $funcDef
+            Write-Debug "[Parse-BashLine] Creating function for alias: $aliasName => $funcDef"
         }
         else {
             Write-Debug "[Parse-BashLine] Creating simple alias: $aliasName -> $aliasValue"
@@ -268,7 +270,7 @@ function Load-BashRc {
         [boolean]$All = $false
     )
 
-    New-Item -Path Function:\ -Name "cdf" -Value "cd '..'"  -Force | Out-Null
+    Invoke-Expression "function global:cdf { cd '..' }"
     Write-Debug "[Load-BashRc] Loading bashrc file from: $Value"
 
     if (-not (Test-Path $Value)) {
@@ -329,19 +331,8 @@ if (-not [string]::IsNullOrWhiteSpace("$env:USER_BIN_PATH")) {
             $filePath = $_.FullName
 
             Write-Debug "[bin] adding $fileName at path: $filePath"
-            # Create function dynamically
-            # $scriptBlock = [ScriptBlock]::Create("param(`$args);  sh $filePath  @args ")
-
-            $scriptBlock = {
-                param(
-                    [Parameter(ValueFromRemainingArguments = $true)]
-                    $Arguments
-                )
-                busybox bash $filePath $Arguments
-            }.GetNewClosure()
-
-
-            Set-Item "Function:\global:$fileName" -Value $scriptBlock -Force | Out-Null
+            $funcDef = "function global:$fileName { param(`$args); busybox bash '$filePath' $args }"
+            Invoke-Expression $funcDef
         }
     }
     else {
@@ -350,15 +341,12 @@ if (-not [string]::IsNullOrWhiteSpace("$env:USER_BIN_PATH")) {
 }
 
 if ( -not [string]::IsNullOrWhiteSpace("$env:USER_PROFILE_D_PATH")) {
-
     Write-Debug "[bin] USER_PROFILE_D_PATH is set: $env:USER_PROFILE_D_PATH"
     # Check if path exists and is a directory
     if (Test-Path -Path "$env:USER_PROFILE_D_PATH" -PathType Container) {
-        
         Get-ChildItem -Path "$env:USER_PROFILE_D_PATH" -File | ForEach-Object {
             $filePath = $_.FullName
-
-            Write-Debug "[profile] loading file: $fileName at path: $filePath"
+            Write-Debug "[profile] loading file at path: $filePath"
             Load-BashRc -Value $filePath -All $true
         }
     }
