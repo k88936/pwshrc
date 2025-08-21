@@ -40,7 +40,7 @@
 
 * Using Scoop
     ```powershell
-    scoop install https://raw.githubusercontent.com/k88936/pwshrc/refs/heads/main/pwshrc.json
+    scoop install https://github.com/k88936/scoop-bucket/raw/refs/heads/master/bucket/pwshrc.json
     ```
 
 * Manual Installation
