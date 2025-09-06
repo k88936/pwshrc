@@ -148,9 +148,10 @@ function Parse-BashLine {
     # Handle PATH
     # ----------------------------
     if ($trimmedLine -match '^export\s+PATH=(?:"([^"]+)"|''([^'']+)''|([^\s]+))$') {
-        Write-Debug "[Parse-BashLine] Matched export PATH : $($matches[1])"
+        $rawPath = @($matches[1], $matches[2], $matches[3]) | Where-Object { $_ -ne $null -and $_ -ne '' } | Select-Object -First 1
+        Write-Debug "[Parse-BashLine] Matched export PATH raw: $rawPath"
 
-        $pathValue = ProcessString -InputString ($matches[1] -split ':')[0]
+        $pathValue = ProcessString -InputString $rawPath
 
         Write-Debug "[Parse-BashLine] Expanded PATH value: $pathValue"
 
@@ -331,7 +332,8 @@ if (-not [string]::IsNullOrWhiteSpace("$env:USER_BIN_PATH")) {
             $filePath = $_.FullName
 
             Write-Debug "[bin] adding $fileName at path: $filePath"
-            $funcDef = "function global:$fileName { param(`$args); busybox bash '$filePath' $args }"
+            # Forward all arguments correctly with array splatting; use -- to end options and preserve quoting
+            $funcDef = "function global:$fileName { & busybox bash -- '$filePath' @args }"
             Invoke-Expression $funcDef
         }
     }

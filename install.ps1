@@ -3,7 +3,7 @@ $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $profilePath = $PROFILE
 
 # Initialization command content
-$initCommand = ". `"$scriptDir\.pwshrc.ps1`""
+$initCommand = ". `"$scriptDir\pwshrc.ps1`""
 
 # If profile doesn't exist, create it
 if (-not (Test-Path $profilePath)) {
