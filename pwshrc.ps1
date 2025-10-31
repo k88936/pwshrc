@@ -5,6 +5,7 @@ Set-PSReadLineKeyHandler -Key Tab -Function Complete
 Remove-Item alias:rm
 Remove-Item alias:ls
 Remove-Item alias:curl 
+Remove-Item alias:wget 
 New-Alias -Name sudo -Value "$env:USERPROFILE\scoop\apps\sudo\current\sudo.ps1"
 New-Alias -Name curl -Value "busybox curl"
 New-Alias -Name wget -Value "busybox wget"
