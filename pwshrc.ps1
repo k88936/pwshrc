@@ -14,7 +14,8 @@ New-Alias -Name wget -Value "busybox wget"
 
 function Unescape-BashString {
     param(
-        [string]$Value
+        [string]$Value,
+        [switch]$SkipEscapeSequences
     )
     Write-Debug "[Unescape-BashString] Input: $Value"
 
@@ -22,13 +23,22 @@ function Unescape-BashString {
         return $Value
     }
 
-    # Step 1: Replace common escape characters
-    $Value = $Value -replace '\\"', '"'           # \" → "
-    $Value = $Value -replace '\\\$', '$'          # \$ → $
-    $Value = $Value -replace '\\\\', '\'          # \\ → \
-    $Value = $Value -replace '\\n', "`n"          # \n → NewLine
-    $Value = $Value -replace '\\t', "`t"          # \t → Tab
-    $Value = $Value -replace '\\r', "`r"          # \r → Carriage Return
+    # Only process escape sequences if explicitly requested and not dealing with Windows paths
+    if (-not $SkipEscapeSequences) {
+        # Check if value contains Windows path patterns (C:\, drive letters, semicolon-separated paths)
+        $isWindowsPath = $Value -match '[A-Za-z]:\\' -or $Value -match ';.*\\'
+        
+        if (-not $isWindowsPath) {
+            # Step 1: Replace bash escape characters
+            # Note: These patterns look for DOUBLE backslash (actual escape sequences in bash)
+            $Value = $Value -replace '\\\\', '\'          # \\ → \
+            $Value = $Value -replace '\\"', '"'           # \" → "
+            $Value = $Value -replace '\\\$', '$'          # \$ → $
+            $Value = $Value -replace '\\n', "`n"          # \n → NewLine
+            $Value = $Value -replace '\\t', "`t"          # \t → Tab
+            $Value = $Value -replace '\\r', "`r"          # \r → Carriage Return
+        }
+    }
 
     Write-Debug "[Unescape-BashString] Output: $Value"
     return $Value
@@ -125,7 +135,9 @@ function ProcessString {
     # Step 4: Convert Unix path format
     $processed = Convert-UnixPathToWindows -Value $processed
 
-    $processed = Unescape-BashString -Value $processed
+    # Skip escape sequences for Windows paths (contains drive letters or path separators)
+    $isWindowsPath = $processed -match '[A-Za-z]:\\|;[A-Za-z]:\\'
+    $processed = Unescape-BashString -Value $processed -SkipEscapeSequences:$isWindowsPath
 
 
     Write-Debug "[ProcessString] Final processed value: $processed"
@@ -152,22 +164,35 @@ function Parse-BashLine {
         $rawPath = @($matches[1], $matches[2], $matches[3]) | Where-Object { $_ -ne $null -and $_ -ne '' } | Select-Object -First 1
         Write-Debug "[Parse-BashLine] Matched export PATH raw: $rawPath"
 
+        # Convert bash PATH separators to Windows before processing
+        $rawPath = $rawPath -replace ':(\$PATH)', ';$1'
+        $rawPath = $rawPath -replace '(\$PATH):', '$1;'
+        Write-Debug "[Parse-BashLine] After separator conversion: $rawPath"
+
         $pathValue = ProcessString -InputString $rawPath
 
         Write-Debug "[Parse-BashLine] Expanded PATH value: $pathValue"
 
-        $newPaths = ($pathValue -split ':' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+        # Split by semicolon only (colons are part of Windows drive letters like C:)
+        # At this point, all PATH separators should already be converted to semicolons
+        $newPaths = ($pathValue -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 
         foreach ($p in $newPaths) {
             $resolvedPath = [System.Environment]::ExpandEnvironmentVariables($p)
             # Skip paths with illegal characters (basic check)
-            if ($resolvedPath -match '[<>:"|?*]' -or $resolvedPath -match '^\\\\' -or $resolvedPath -match '[\/]$') {
+            # Note: Allow colon in drive letters (e.g., C:), but not elsewhere
+            $hasIllegalChars = $resolvedPath -match '[<>"|?*]' -or 
+                               ($resolvedPath -match ':' -and $resolvedPath -notmatch '^[A-Za-z]:') -or
+                               $resolvedPath -match '^\\\\' -or 
+                               $resolvedPath -match '[\/]$'
+            if ($hasIllegalChars) {
                 Write-Debug "[Parse-BashLine] Skipping path with illegal characters: $resolvedPath"
                 continue
             }
             Write-Debug "[Parse-BashLine] Processing path: $resolvedPath" 
             if (Test-Path $resolvedPath -PathType Container) {
-                if (-not $env:PATH.Contains($resolvedPath, [System.StringComparison]::InvariantCultureIgnoreCase)) {
+                # Use -like for case-insensitive comparison (compatible with all PowerShell versions)
+                if ($env:PATH -notlike "*$resolvedPath*") {
                     Write-Debug "[Parse-BashLine] Adding to PATH: $resolvedPath"
                     $env:PATH += ";$resolvedPath"
                 }
